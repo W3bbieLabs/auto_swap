@@ -1,0 +1,5 @@
+curl -X POST   -H "Content-Type: application/json" -d '{"type": "crypo", "symbol":"pengu", "signal":"buy", "key":"p3022"}' https://w3bbiegames.xyz/pengu
+curl -X POST   -H "Content-Type: application/json" -d '{"type": "crypo", "symbol":"pengu", "signal":"sell", "key":"p3022"}' https://w3bbiegames.xyz/pengu
+{"action": "{{strategy.order.action}}","key":"p3022"}
+
+{"action": "{{strategy.order.action}}", "key":"p3022"}

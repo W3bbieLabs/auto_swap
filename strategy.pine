@@ -1,0 +1,26 @@
+//@version=5
+strategy("RSI Strategy", overlay=true)
+
+// RSI Settings
+rsiLength = input(14, "RSI Length")
+rsiValue = ta.rsi(close, rsiLength)
+
+// RSI Thresholds
+oversold = input(50, "Oversold Level")
+overbought = input(70, "Overbought Level")
+
+// Entry conditions
+longCondition = ta.crossover(rsiValue, oversold)
+shortCondition = ta.crossover(rsiValue, overbought)
+
+// Strategy execution
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.close("Long")
+
+// Plot RSI for visual reference
+plot(rsiValue, "RSI", color=color.purple, linewidth=2)
+hline(oversold, "Oversold", color=color.green)
+hline(overbought, "Overbought", color=color.red) 

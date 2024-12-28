@@ -1,0 +1,93 @@
+//@version=5
+strategy("Double Bottom Strategy", overlay=true, initial_capital=200, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Date Range Inputs
+startDate = input.time(timestamp("1 Jan 2020"), "Start Date")
+endDate = input.time(timestamp("31 Dec 2025"), "End Date")
+timeInRange = time >= startDate and time <= endDate
+
+// Double Bottom Parameters
+lookbackPeriod = input.int(20, "Lookback Period")
+maxPriceDiff = input.float(0.2, "Max Price Difference %", minval=0.1, step=0.1)
+minBottomDistance = input.int(5, "Min Bars Between Bottoms", minval=3)
+maxBottomDistance = input.int(30, "Max Bars Between Bottoms", minval=10)
+minRecovery = input.float(1.0, "Min Recovery % Between Bottoms", minval=0.1, step=0.1)
+
+// Risk Management
+stopLossPercent = input.float(2.0, "Stop Loss %", minval=0.1, maxval=100.0, step=0.1)
+takeProfitPercent = input.float(20.0, "Take Profit %", minval=0.1, maxval=100.0, step=0.1)
+
+// Detect local bottom
+isSwingLow(idx) =>
+    lowerLow = low[idx] < low[idx + 1] and low[idx] < low[idx + 2]
+    lowerHigh = high[idx] < high[idx + 1]
+    higherAfter = low[idx + 3] > low[idx] or low[idx + 4] > low[idx]
+    lowerLow and lowerHigh and higherAfter
+
+// Variables to store pattern information
+var float firstBottomPrice = na
+var int firstBottomIdx = na
+var float secondBottomPrice = na
+var int secondBottomIdx = na
+var float highestHigh = na
+var bool inPattern = false
+var bool doubleBottomFound = false
+
+// Reset if lookback period exceeded
+if bar_index - firstBottomIdx > lookbackPeriod and not na(firstBottomIdx)
+    firstBottomPrice := na
+    firstBottomIdx := na
+    secondBottomPrice := na
+    secondBottomIdx := na
+    highestHigh := na
+    inPattern := false
+    doubleBottomFound := false
+
+// Pattern Detection Logic
+if isSwingLow(2)  // Check 2 bars ago to ensure we have enough bars ahead
+    if na(firstBottomPrice)
+        firstBottomPrice := low[2]
+        firstBottomIdx := bar_index - 2
+        inPattern := true
+        highestHigh := high[2]
+    else if inPattern and not doubleBottomFound
+        barsSinceFirst = bar_index - 2 - firstBottomIdx
+        priceDiff = math.abs(low[2] - firstBottomPrice) / firstBottomPrice * 100
+        
+        if barsSinceFirst >= minBottomDistance and 
+           barsSinceFirst <= maxBottomDistance and 
+           priceDiff <= maxPriceDiff
+            secondBottomPrice := low[2]
+            secondBottomIdx := bar_index - 2
+            
+            recoveryPercent = (highestHigh - firstBottomPrice) / firstBottomPrice * 100
+            if recoveryPercent >= minRecovery
+                doubleBottomFound := true
+
+// Update highest high between bottoms
+if inPattern and not doubleBottomFound
+    highestHigh := math.max(highestHigh, high)
+
+// Entry/Exit Logic
+var float stopPrice = na
+var float takeProfitPrice = na
+
+longCondition = doubleBottomFound and timeInRange
+
+if (longCondition)
+    stopPrice := close * (1 - stopLossPercent/100)
+    takeProfitPrice := close * (1 + takeProfitPercent/100)
+
+// Exit conditions
+stopLossCondition = strategy.position_size > 0 and low <= stopPrice
+takeProfitCondition = strategy.position_size > 0 and high >= takeProfitPrice
+
+// Strategy execution
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.close("Long", when=stopLossCondition, comment="Stop Loss")
+strategy.close("Long", when=takeProfitCondition, comment="Take Profit")
+
+// Alert conditions
+//alertcondition(longCondition, title="Long Entry", message="RSI crossed above {{overbought}} AND price above BB basis - Long Entry Signal")
+//alertcondition(stopLossCondition, title="Stop Loss Exit", message="Price hit stop loss at {{stopPrice}} - Exit Signal")
+//alertcondition(takeProfitCondition, title="Take Profit Exit", message="Price hit take profit at {{takeProfitPrice}} - Exit Signal")

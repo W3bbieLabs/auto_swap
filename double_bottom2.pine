@@ -1,0 +1,130 @@
+//@version=5
+strategy("Double Bottom Strategy", overlay=true, initial_capital=200, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Date Range Inputs
+startDate = input.time(timestamp("1 Jan 2020"), "Start Date")
+endDate = input.time(timestamp("31 Dec 2025"), "End Date")
+timeInRange = time >= startDate and time <= endDate
+
+// Double Bottom Parameters
+lookbackPeriod = input.int(20, "Lookback Period")
+maxPriceDiff = input.float(0.2, "Max Price Difference %", minval=0.1, step=0.1)
+minBottomDistance = input.int(5, "Min Bars Between Bottoms", minval=3)
+maxBottomDistance = input.int(30, "Max Bars Between Bottoms", minval=10)
+minRecovery = input.float(1.0, "Min Recovery % Between Bottoms", minval=0.1, step=0.1)
+
+// Risk Management
+stopLossPercent = input.float(2.0, "Stop Loss %", minval=0.1, maxval=100.0, step=0.1)
+takeProfitPercent = input.float(20.0, "Take Profit %", minval=0.1, maxval=100.0, step=0.1)
+
+// Detect local bottom
+isSwingLow(idx) =>
+    lowerLow = low[idx] < low[idx + 1] and low[idx] < low[idx + 2]
+    lowerHigh = high[idx] < high[idx + 1]
+    higherAfter = low[idx + 3] > low[idx] or low[idx + 4] > low[idx]
+    lowerLow and lowerHigh and higherAfter
+
+// Variables to store pattern information
+var float firstBottomPrice = na
+var int firstBottomIdx = na
+var float secondBottomPrice = na
+var int secondBottomIdx = na
+var float highestHigh = na
+var bool inPattern = false
+var bool doubleBottomFound = false
+
+// Arrays to store bottom locations for plotting
+var firstBottomX = array.new_int()
+var firstBottomY = array.new_float()
+var secondBottomX = array.new_int()
+var secondBottomY = array.new_float()
+
+// Reset if lookback period exceeded
+if bar_index - firstBottomIdx > lookbackPeriod and not na(firstBottomIdx)
+    firstBottomPrice := na
+    firstBottomIdx := na
+    secondBottomPrice := na
+    secondBottomIdx := na
+    highestHigh := na
+    inPattern := false
+    doubleBottomFound := false
+    if array.size(firstBottomX) > 0
+        array.clear(firstBottomX)
+        array.clear(firstBottomY)
+        array.clear(secondBottomX)
+        array.clear(secondBottomY)
+
+// Pattern Detection Logic
+if isSwingLow(2)
+    if na(firstBottomPrice)
+        firstBottomPrice := low[2]
+        firstBottomIdx := bar_index - 2
+        inPattern := true
+        highestHigh := high[2]
+    else if inPattern and not doubleBottomFound
+        barsSinceFirst = bar_index - 2 - firstBottomIdx
+        priceDiff = math.abs(low[2] - firstBottomPrice) / firstBottomPrice * 100
+        
+        if barsSinceFirst >= minBottomDistance and 
+           barsSinceFirst <= maxBottomDistance and 
+           priceDiff <= maxPriceDiff
+            secondBottomPrice := low[2]
+            secondBottomIdx := bar_index - 2
+            
+            recoveryPercent = (highestHigh - firstBottomPrice) / firstBottomPrice * 100
+            if recoveryPercent >= minRecovery
+                doubleBottomFound := true
+                array.push(firstBottomX, firstBottomIdx)
+                array.push(firstBottomY, firstBottomPrice)
+                array.push(secondBottomX, secondBottomIdx)
+                array.push(secondBottomY, secondBottomPrice)
+
+// Update highest high between bottoms
+if inPattern and not doubleBottomFound
+    highestHigh := math.max(highestHigh, high)
+
+// Entry/Exit Logic
+var float stopPrice = na
+var float takeProfitPrice = na
+
+longCondition = doubleBottomFound and timeInRange
+
+if (longCondition)
+    stopPrice := close * (1 - stopLossPercent/100)
+    takeProfitPrice := close * (1 + takeProfitPercent/100)
+
+// Exit conditions
+stopLossCondition = strategy.position_size > 0 and low <= stopPrice
+takeProfitCondition = strategy.position_size > 0 and high >= takeProfitPrice
+
+// Strategy execution
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.close("Long", when=stopLossCondition, comment="Stop Loss")
+strategy.close("Long", when=takeProfitCondition, comment="Take Profit")
+
+// Plotting
+plotshape(doubleBottomFound, title="Double Bottom", text="DB", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+//plot(strategy.position_size > 0 ? stopPrice : na, "Stop Loss", color=color.red, style=plot.style_linebr)
+//plot(strategy.position_size > 0 ? takeProfitPrice : na, "Take Profit", color=color.blue, style=plot.style_linebr)
+
+// Plot pattern points and connecting lines
+if array.size(firstBottomX) > 0
+    for i = 0 to array.size(firstBottomX) - 1
+        x1 = array.get(firstBottomX, i)
+        y1 = array.get(firstBottomY, i)
+        x2 = array.get(secondBottomX, i)
+        y2 = array.get(secondBottomY, i)
+        
+        // Plot bottom points
+        label.new(x1, y1, "B1", color=color.yellow, style=label.style_circle, size=size.small)
+        label.new(x2, y2, "B2", color=color.yellow, style=label.style_circle, size=size.small)
+        
+        // Draw connecting line between bottoms
+        line.new(x1, y1, x2, y2, color=color.yellow, style=line.style_dashed)
+
+bgcolor(timeInRange ? color.new(color.green, 90) : color.new(color.red, 90))
+
+// Alert conditions
+//alertcondition(longCondition, title="Long Entry", message="RSI crossed above {{overbought}} AND price above BB basis - Long Entry Signal")
+//alertcondition(stopLossCondition, title="Stop Loss Exit", message="Price hit stop loss at {{stopPrice}} - Exit Signal")
+//alertcondition(takeProfitCondition, title="Take Profit Exit", message="Price hit take profit at {{takeProfitPrice}} - Exit Signal")
