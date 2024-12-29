@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import { Connection, Keypair, VersionedTransaction, PublicKey } from '@solana/web3.js';
+import { Connection, Keypair, VersionedTransaction, PublicKey, ComputeBudgetProgram } from '@solana/web3.js';
 import fetch from 'cross-fetch';
 import { Wallet } from '@project-serum/anchor';
 import bs58 from 'bs58';
@@ -15,11 +15,18 @@ export let tokens = {
     'bonk': 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263',
     'jup': 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN',
     'choose': 'G3q2zUkuxDCXMnhdBPujjPHPw9UTMDbXqzcc2UHM3jiy',
-    'ai16z': 'HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC'
+    'ai16z': 'HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC',
+    'swarm': 'Hjw6bEcHtbHGpQr8onG3izfJY5DJiWdt7uk2BfdSpump',
+    'binary': '23ENcgMStoFMYYj5qdauaca3v1ouvRdZXTdi55J1pump'
 }
-
-
 dotenv.config();
+let key = process.env.HELIUS_API_KEY
+
+console.log("key: ", key)
+
+//const connection = new Connection('https://mainnet.helius-rpc.com/?api-key=' + key);
+const connection = new Connection('https://api.mainnet-beta.solana.com');
+
 
 const sleep = (ms = 2000) => new Promise((r) => setTimeout(r, ms));
 
@@ -30,9 +37,14 @@ async function swapSolToToken(
     inputAmount, // Amount in lamports (1 SOL = 1_000_000_000 lamports)
     slippageBps = 50 // Default 0.5% slippage
 ) {
+    // console.log("privateKey: ", privateKey)
+    // console.log("outputMint: ", outputMint)
+    // console.log("inputAmount: ", inputAmount)
+    // console.log("slippageBps: ", slippageBps)
     try {
         // 1. Setup connection and wallet
-        const connection = new Connection('https://api.mainnet-beta.solana.com');
+
+        //const connection = new Connection('https://api.mainnet-beta.solana.com');
         const wallet = new Wallet(Keypair.fromSecretKey(bs58.decode(privateKey)));
 
         // 2. Get quote
@@ -44,6 +56,8 @@ async function swapSolToToken(
                 `&slippageBps=${slippageBps}`
             )
         ).json();
+        //console.log("quoteResponse: ")
+        //console.log(quoteResponse)
 
         // 3. Get swap transaction
         const { swapTransaction } = await (
@@ -64,7 +78,9 @@ async function swapSolToToken(
 
         // 4. Deserialize and sign the transaction
         const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
+
         const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+
         transaction.sign([wallet.payer]);
 
         // 5. Execute the transaction
@@ -75,14 +91,16 @@ async function swapSolToToken(
         const rawTransaction = transaction.serialize()
         const txid = await connection.sendRawTransaction(rawTransaction, {
             skipPreflight: true,
-            maxRetries: 2
+            maxRetries: 2,
+            preflightCommitment: 'confirmed'
         });
 
         await connection.confirmTransaction({
             blockhash: latestBlockHash.blockhash,
             lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
             signature: txid
-        });
+        }, 'confirmed');
+
 
         //console.log(`https://solscan.io/tx/${txid}`);
 
@@ -109,7 +127,7 @@ async function swapTokenToSol(
 ) {
     try {
         // 1. Setup connection and wallet
-        const connection = new Connection('https://api.mainnet-beta.solana.com');
+        //const connection = new Connection('https://api.mainnet-beta.solana.com');
         const wallet = new Wallet(Keypair.fromSecretKey(bs58.decode(privateKey)));
 
         // 2. Get quote
@@ -121,6 +139,8 @@ async function swapTokenToSol(
                 `&slippageBps=${slippageBps}`
             )
         ).json();
+        console.log("quoteResponse: ")
+        console.log(quoteResponse)
 
         // 3. Get swap transaction
         const { swapTransaction } = await (
@@ -137,6 +157,8 @@ async function swapTokenToSol(
                 })
             })
         ).json();
+        console.log("swapTransaction: ")
+        console.log(swapTransaction)
 
         // 4. Deserialize and sign the transaction
         const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
@@ -204,7 +226,7 @@ async function getTokenDecimals(connection, mintAddress) {
 
 async function getSolBalance(walletAddress) {
     try {
-        const connection = new Connection('https://api.mainnet-beta.solana.com');
+        //const connection = new Connection('https://api.mainnet-beta.solana.com');
         const publicKey = new PublicKey(walletAddress);
         const balance = await connection.getBalance(publicKey);
         return {
@@ -222,6 +244,7 @@ async function getSolBalance(walletAddress) {
 
 async function getTargetAmount(walletAddress, tradePercentage) {
     const balance = await getSolBalance(walletAddress);
+    console.log("current Sol balance: ", balance)
     let targetAmount = Number((balance.balanceSOL * tradePercentage).toFixed(3));
     return targetAmount;
 }
@@ -229,7 +252,7 @@ async function getTargetAmount(walletAddress, tradePercentage) {
 // Function to get balance of any SPL token for a wallet
 async function getTokenBalance(walletAddress, tokenMint) {
     try {
-        const connection = new Connection('https://api.mainnet-beta.solana.com');
+        //const connection = new Connection('https://api.mainnet-beta.solana.com');
         const publicKey = new PublicKey(walletAddress);
         const tokenMintPubkey = new PublicKey(tokenMint);
 
@@ -264,8 +287,9 @@ async function getTokenBalance(walletAddress, tokenMint) {
 
 export async function long(token, private_key, wallet_address) {
     let target_amount = await getTargetAmount(wallet_address, TRADE_PERCENTAGE);
+    console.log("target_amount: ", target_amount)
     let sol_balance = await getSolBalance(wallet_address);
-    let tx_result = await swapSolToToken(private_key, tokens[token], solToLamports(target_amount), 50);
+    let tx_result = await swapSolToToken(private_key, tokens[token], solToLamports(target_amount), 100);
     //console.log(tx_result)
     let timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }).replace(',', '');
 
@@ -276,8 +300,9 @@ export async function long(token, private_key, wallet_address) {
 
     } else {
         let logEntry = `${timestamp}, ${token}, buy_error, ${sol_balance.balanceSOL}, ${tx_result.tx}, ${wallet_address}\n`;
+        console.log(tx_result)
         fs.appendFileSync('log.csv', logEntry);
-        await sleep(10000)
+        await sleep(5000)
         return await long(token, private_key, wallet_address)
     }
 
@@ -288,7 +313,7 @@ export async function long(token, private_key, wallet_address) {
 export async function exit_long(token, private_key, wallet_address, decimals = 6) {
     let { balance } = await getTokenBalance(wallet_address, tokens[token]);
     console.log(`${token} balance: ${balance}`)
-    let tx_result = await swapTokenToSol(private_key, tokens[token], tokenToSmallestUnit(balance, decimals), 50);
+    let tx_result = await swapTokenToSol(private_key, tokens[token], tokenToSmallestUnit(balance, decimals), 100);
     console.log(`tx_result`)
     console.log(tx_result)
     let timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }).replace(',', '');
@@ -304,11 +329,18 @@ export async function exit_long(token, private_key, wallet_address, decimals = 6
         fs.appendFileSync('log.csv', logEntry);
 
     } else {
-        let logEntry = `${timestamp}, ${token}, sell_error, ${sol_balance.balanceSOL}, ${tx_result.tx}, ${wallet_address}\n`;
+        let logEntry = `${timestamp}, ${token}, sell_error, ${sol_balance.balanceSOL}, ${tx_result.error}, ${wallet_address}\n`;
         fs.appendFileSync('log.csv', logEntry);
-        console.log(logEntry)
-        await sleep(10000)
-        return await exit_long(token, private_key, wallet_address, decimals)
+        await sleep(2000)
+        let actual_balance = parseInt(token_balance)
+        if (actual_balance > 0) {
+            return await exit_long(token, private_key, wallet_address, decimals)
+        } else {
+            console.log(`No balance to sell`)
+            return {
+                success: true,
+            }
+        }
     }
 
     return tx_result

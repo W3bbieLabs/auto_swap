@@ -5,7 +5,7 @@ import { long, exit_long } from "./web3_utils.js";
 dotenv.config();
 
 const TRADING_VIEW_API_KEY = process.env.TRADING_VIEW_API_KEY;
-let { WALLET_PRIVATE_KEY_DDC, WALLET_ADDRESS_DDC, WALLET_PRIVATE_KEY_SNV, WALLET_ADDRESS_SNV } = process.env;
+let { WALLET_PRIVATE_KEY_4GM, WALLET_ADDRESS_4GM, WALLET_PRIVATE_KEY_SNV, WALLET_ADDRESS_SNV } = process.env;
 
 const app = express();
 
@@ -14,7 +14,7 @@ app.get("/", (req, res) => {
 });
 
 app.listen(3000, () => {
-    console.log("Server is running on port 3000. Retrying errors. Printing tx. with sleep.");
+    console.log("Server is running on port 3000. Swarm added.");
 });
 
 app.use(express.json());
@@ -23,6 +23,7 @@ const sleep = (ms = 2000) => new Promise((r) => setTimeout(r, ms));
 
 
 async function add_endpoint(endpoint, wallet_private_key, wallet_address, decimals = 6) {
+    console.log("Adding endpoint", endpoint)
     app.post(endpoint, async (req, res) => {
         let { type, symbol, action, key } = req.body;
         symbol = req.url.split("/")[1]
@@ -63,4 +64,5 @@ async function add_endpoint(endpoint, wallet_private_key, wallet_address, decima
     });
 }
 
-add_endpoint("/pengu", [WALLET_PRIVATE_KEY_SNV], [WALLET_ADDRESS_SNV])
+add_endpoint("/swarm", [WALLET_PRIVATE_KEY_SNV], [WALLET_ADDRESS_SNV])
+add_endpoint("/ai16z", [WALLET_PRIVATE_KEY_4GM], [WALLET_ADDRESS_4GM], 9)
