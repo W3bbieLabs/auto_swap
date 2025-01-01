@@ -73,6 +73,8 @@ async function swapSolToToken(
                     userPublicKey: wallet.publicKey.toString(),
                     wrapAndUnwrapSol: true,
                     // Optional: Use dynamic slippage for better execution
+                    // Add priority fee settings here
+                    computeUnitPriceMicroLamports: 50000,
                     dynamicSlippage: { maxBps: slippageBps }
                 })
             })
@@ -92,16 +94,16 @@ async function swapSolToToken(
         // Execute the transaction
         const rawTransaction = transaction.serialize()
         const txid = await connection.sendRawTransaction(rawTransaction, {
-            skipPreflight: true,
             maxRetries: 2,
-            preflightCommitment: 'confirmed'
         });
 
+        /*
         await connection.confirmTransaction({
             blockhash: latestBlockHash.blockhash,
             lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
             signature: txid
         }, 'confirmed');
+        */
 
 
         //console.log(`https://solscan.io/tx/${txid}`);
@@ -155,6 +157,8 @@ async function swapTokenToSol(
                     quoteResponse,
                     userPublicKey: wallet.publicKey.toString(),
                     wrapAndUnwrapSol: true,
+                    // Add priority fee settings here
+                    computeUnitPriceMicroLamports: 50000,
                     dynamicSlippage: { maxBps: slippageBps }
                 })
             })
@@ -165,21 +169,27 @@ async function swapTokenToSol(
         // 4. Deserialize and sign the transaction
         const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
         const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+
+        // Get the latest blockhash
+        const latestBlockHash = await connection.getLatestBlockhash();
+
         transaction.sign([wallet.payer]);
 
-        // 5. Execute the transaction
-        const latestBlockHash = await connection.getLatestBlockhash();
         const rawTransaction = transaction.serialize()
         const txid = await connection.sendRawTransaction(rawTransaction, {
-            skipPreflight: true,
-            maxRetries: 2
+            maxRetries: 2,
         });
 
+        await sleep(5000)
+
+        // Use shorter confirmation timeout
+        /*
         await connection.confirmTransaction({
+            signature: txid,
             blockhash: latestBlockHash.blockhash,
             lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
             signature: txid
-        });
+        });*/
 
         //console.log(`https://solscan.io/tx/${txid}`);
 
@@ -204,7 +214,6 @@ function solToLamports(sol) {
 
 // Helper function to convert USDC to its smallest unit (6 decimals)
 function tokenToSmallestUnit(usdc, decimals = 6) {
-    //return Math.round(usdc * (Math.pow(10, decimals))); // USDC has 6 decimal places
     return Math.round(usdc * Math.pow(10, decimals));
 }
 
@@ -294,8 +303,11 @@ export async function long(token, private_key, wallet_address) {
     let tx_result = await swapSolToToken(private_key, tokens[token], solToLamports(target_amount), 100);
     //console.log(tx_result)
     let timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }).replace(',', '');
+    let { balance: token_balance } = await getTokenBalance(wallet_address, tokens[token]);
+    let actual_balance = parseInt(token_balance)
 
-    if (tx_result.success) {
+
+    if (actual_balance > 0.5) {
         // Log the trade to CSV
         let logEntry = `${timestamp}, ${token}, buy, ${sol_balance.balanceSOL}, ${tx_result.tx}, ${wallet_address}\n`;
         fs.appendFileSync('log.csv', logEntry);
@@ -315,7 +327,7 @@ export async function long(token, private_key, wallet_address) {
 export async function exit_long(token, private_key, wallet_address, decimals = 6) {
     let { balance } = await getTokenBalance(wallet_address, tokens[token]);
     console.log(`${token} balance: ${balance}`)
-    let tx_result = await swapTokenToSol(private_key, tokens[token], tokenToSmallestUnit(balance, decimals), 100);
+    let tx_result = await swapTokenToSol(private_key, tokens[token], tokenToSmallestUnit(balance, decimals), 150);
     console.log(`tx_result`)
     console.log(tx_result)
     let timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }).replace(',', '');
@@ -324,8 +336,9 @@ export async function exit_long(token, private_key, wallet_address, decimals = 6
     console.log(sol_balance)
     let { balance: token_balance } = await getTokenBalance(wallet_address, tokens[token]);
     console.log(`${token} balance: ${token_balance}`)
+    let actual_balance = parseInt(token_balance)
 
-    if (tx_result.success) {
+    if (actual_balance < 5.0) {
         // Log the trade to CSV
         let logEntry = `${timestamp}, ${token}, sell, ${sol_balance.balanceSOL}, ${tx_result.tx}, ${wallet_address}\n`;
         fs.appendFileSync('log.csv', logEntry);
@@ -333,8 +346,7 @@ export async function exit_long(token, private_key, wallet_address, decimals = 6
     } else {
         let logEntry = `${timestamp}, ${token}, sell_error, ${sol_balance.balanceSOL}, ${tx_result.error}, ${wallet_address}\n`;
         fs.appendFileSync('log.csv', logEntry);
-        await sleep(2000)
-        let actual_balance = parseInt(token_balance)
+        await sleep(20000)
         if (actual_balance > 0) {
             return await exit_long(token, private_key, wallet_address, decimals)
         } else {
