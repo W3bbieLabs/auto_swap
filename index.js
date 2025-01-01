@@ -5,7 +5,18 @@ import { long, exit_long } from "./web3_utils.js";
 dotenv.config();
 
 const TRADING_VIEW_API_KEY = process.env.TRADING_VIEW_API_KEY;
-let { WALLET_PRIVATE_KEY_4GM, WALLET_ADDRESS_4GM, WALLET_PRIVATE_KEY_SNV, WALLET_ADDRESS_SNV } = process.env;
+let {
+    WALLET_PRIVATE_KEY_4GM,
+    WALLET_ADDRESS_4GM,
+    WALLET_PRIVATE_KEY_SNV,
+    WALLET_ADDRESS_SNV,
+    WALLET_PRIVATE_KEY_TRAV_EJF,
+    WALLET_ADDRESS_TRAV_EJF,
+    WALLETT_PRIVATE_KEY_YB3,
+    WALLET_ADDRESS_YB3,
+    WALLET_PRIVATE_KEY_DDC,
+    WALLET_ADDRESS_DDC
+} = process.env;
 
 const app = express();
 
@@ -14,7 +25,7 @@ app.get("/", (req, res) => {
 });
 
 app.listen(3000, () => {
-    console.log("Server is running on port 3000. Swarm added.");
+    console.log("Server is running on port 3000. Scout added.");
 });
 
 app.use(express.json());
@@ -64,5 +75,8 @@ async function add_endpoint(endpoint, wallet_private_key, wallet_address, decima
     });
 }
 
+
+add_endpoint("/pythia", [WALLETT_PRIVATE_KEY_YB3], [WALLET_ADDRESS_YB3])
 add_endpoint("/swarm", [WALLET_PRIVATE_KEY_SNV], [WALLET_ADDRESS_SNV])
+add_endpoint("/scout", [WALLET_PRIVATE_KEY_DDC], [WALLET_ADDRESS_DDC])
 add_endpoint("/ai16z", [WALLET_PRIVATE_KEY_4GM], [WALLET_ADDRESS_4GM], 9)

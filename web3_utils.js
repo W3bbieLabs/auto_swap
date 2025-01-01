@@ -17,7 +17,9 @@ export let tokens = {
     'choose': 'G3q2zUkuxDCXMnhdBPujjPHPw9UTMDbXqzcc2UHM3jiy',
     'ai16z': 'HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC',
     'swarm': 'Hjw6bEcHtbHGpQr8onG3izfJY5DJiWdt7uk2BfdSpump',
-    'binary': '23ENcgMStoFMYYj5qdauaca3v1ouvRdZXTdi55J1pump'
+    'binary': '23ENcgMStoFMYYj5qdauaca3v1ouvRdZXTdi55J1pump',
+    'pythia': 'CreiuhfwdWCN5mJbMJtA9bBpYQrQF2tCBuZwSPWfpump',
+    'scout': 'GLPdQwGtjcynj3RLraenPeR9v1REnpdyuciPBpVipump'
 }
 dotenv.config();
 let key = process.env.HELIUS_API_KEY
