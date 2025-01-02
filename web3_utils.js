@@ -307,7 +307,7 @@ export async function long(token, private_key, wallet_address) {
     let actual_balance = parseInt(token_balance)
 
 
-    if (actual_balance > 0.5) {
+    if (actual_balance > 2.0) {
         // Log the trade to CSV
         let logEntry = `${timestamp}, ${token}, buy, ${sol_balance.balanceSOL}, ${tx_result.tx}, ${wallet_address}\n`;
         fs.appendFileSync('log.csv', logEntry);
@@ -346,7 +346,7 @@ export async function exit_long(token, private_key, wallet_address, decimals = 6
     } else {
         let logEntry = `${timestamp}, ${token}, sell_error, ${sol_balance.balanceSOL}, ${tx_result.error}, ${wallet_address}\n`;
         fs.appendFileSync('log.csv', logEntry);
-        await sleep(20000)
+        await sleep(5000)
         if (actual_balance > 0) {
             return await exit_long(token, private_key, wallet_address, decimals)
         } else {

@@ -1,26 +1,105 @@
 //@version=5
-strategy("RSI Strategy", overlay=true)
+strategy("Momentum (Updated) + RSI & BB Strategy with SL & TP", overlay=true, initial_capital=200, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Date Range Inputs
+startDate = input.time(timestamp("26 Dec 2024"), "Start Date")
+endDate = input.time(timestamp("31 Dec 2025"), "End Date")
+timeInRange = time >= startDate and time <= endDate
 
 // RSI Settings
 rsiLength = input(14, "RSI Length")
 rsiValue = ta.rsi(close, rsiLength)
 
-// RSI Thresholds
-oversold = input(50, "Oversold Level")
-overbought = input(70, "Overbought Level")
+// Add RSI bar counter
+//_overbought = input(60, "overbought RSI counter Level")
+// var int rsiOverBoughtBars = 0
+// rsiOverBoughtBars := rsiValue > _overbought ? rsiOverBoughtBars + 1 : 0
+//plot(rsiOverBoughtBars, "RSI Overbought Bars", color=color.blue, style=plot.style_columns)
+
+// Track RSI overbought bars over last 30 bars
+// var float rsiOverBoughtBarsLast30 = 0
+// rsiLookback = input(10, "RSI Lookback Period")
+// rsiOverBoughtBarsLast30 := math.sum(rsiValue > _overbought ? 1 : 0, rsiLookback)
+//plot(rsiOverBoughtBarsLast30, "RSI Overbought Bars Last 30", color=color.purple, style=plot.style_columns)
+
+
+// Bollinger Bands Settings
+// bbLength = input(20, "BB Length")
+// bbMult = input(2.0, "BB StdDev")
+// [bbUpper, bbBasis, bbLower] = ta.bb(close, bbLength, bbMult)
+
+// Slope calculation settings
+slopeWindow = input.int(10, "Slope Window Size", minval=1)
+
+// Calculate slope for each point using linear regression
+calcSlope(src, len) =>
+    sumX = 0.0
+    sumY = 0.0
+    sumXY = 0.0
+    sumX2 = 0.0
+    
+    for i = 0 to len - 1
+        val = src[i]
+        sumX += i
+        sumY += val
+        sumXY += i * val
+        sumX2 += i * i
+    
+    slope = (len * sumXY - sumX * sumY) / (len * sumX2 - sumX * sumX)
+    slope
+
+// Calculate average slope over the window
+avgSlope = 0.0
+for i = 0 to slopeWindow - 1
+    avgSlope += calcSlope(close, 5)[i]
+avgSlope := avgSlope / slopeWindow
+avgSlope := -avgSlope * 10000
+
+
+// Plot the average slope
+slopeColor = avgSlope > 0 ?  (avgSlope > 0.5 ? color.green : color.lime) :  (avgSlope < -0.5 ? color.red : color.orange)
+plot(avgSlope, "Average Slope %", color=slopeColor, style=plot.style_columns)
+
+// RSI Threshold
+overbought = input(60, "Overbought Level (Threshold)")
+
+// Risk Management Settings
+stopLossPercent = input.float(3.0, "Stop Loss %", minval=0.1, maxval=100.0, step=0.1)
+takeProfitPercent = input.float(1.5, "Take Profit %", minval=0.1, maxval=100.0, step=0.1)
 
 // Entry conditions
-longCondition = ta.crossover(rsiValue, oversold)
-shortCondition = ta.crossover(rsiValue, overbought)
+// aboveBasis = close > bbBasis
+// minOversoldBars = input.int(3, "Min Oversold Bars", minval=1, maxval=500)
+// slope_threshold = input.float(0, "Close Price Slope Threshold")
+
+momemtum_long_trigger = input.float(3, "Momentum Long Trigger Threshold")
+//longCondition = ta.crossover(rsiValue, overbought) and timeInRange and avgSlope > slope_threshold
+//longCondition = ta.crossover(rsiValue, overbought) and timeInRange 
+//longCondition = ta.crossover(avgSlope, momemtum_long_trigger) and timeInRange
+//longCondition = ta.crossover(rsiValue, overbought) and timeInRange and avgSlope > momemtum_long_trigger //95%
+longCondition = ta.crossover(rsiValue, overbought) and avgSlope > momemtum_long_trigger and timeInRange and strategy.position_size == 0
+
+// Exit price calculations
+var float stopPrice = na
+var float takeProfitPrice = na
+
+// Update stop loss and take profit prices when entering position
+if (longCondition)
+    stopPrice := close * (1 - stopLossPercent/100)
+    takeProfitPrice := close * (1 + takeProfitPercent/100)
+
+// Exit conditions
+stopLossCondition = strategy.position_size > 0 and low <= stopPrice
+
+// maybe change to track the close is greater than take profit price
+takeProfitCondition = strategy.position_size > 0 and high >= takeProfitPrice
 
 // Strategy execution
-if (longCondition)
-    strategy.entry("Long", strategy.long)
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.close("Long", when=stopLossCondition, comment="Stop Loss")
+strategy.close("Long", when=takeProfitCondition, comment="Take Profit")
 
-if (shortCondition)
-    strategy.close("Long")
-
-// Plot RSI for visual reference
-plot(rsiValue, "RSI", color=color.purple, linewidth=2)
-hline(oversold, "Oversold", color=color.green)
-hline(overbought, "Overbought", color=color.red) 
+// Alert conditions
+alertcondition(longCondition, title="Long Entry", message="RSI crossed above {{overbought}} AND price above BB basis - Long Entry Signal")
+alertcondition(stopLossCondition, title="Stop Loss Exit", message="Price hit stop loss at {{stopPrice}} - Exit Signal")
+alertcondition(takeProfitCondition, title="Take Profit Exit", message="Price hit take profit at {{takeProfitPrice}} - Exit Signal")

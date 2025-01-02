@@ -15,7 +15,9 @@ let {
     WALLETT_PRIVATE_KEY_YB3,
     WALLET_ADDRESS_YB3,
     WALLET_PRIVATE_KEY_DDC,
-    WALLET_ADDRESS_DDC
+    WALLET_ADDRESS_DDC,
+    WALLET_PRIVATE_KEY_E3R,
+    WALLET_ADDRESS_E3R
 } = process.env;
 
 const app = express();
@@ -79,4 +81,5 @@ async function add_endpoint(endpoint, wallet_private_key, wallet_address, decima
 add_endpoint("/pythia", [WALLETT_PRIVATE_KEY_YB3], [WALLET_ADDRESS_YB3])
 add_endpoint("/swarm", [WALLET_PRIVATE_KEY_SNV], [WALLET_ADDRESS_SNV])
 add_endpoint("/scout", [WALLET_PRIVATE_KEY_DDC], [WALLET_ADDRESS_DDC])
+add_endpoint("/pengu", [WALLET_PRIVATE_KEY_E3R], [WALLET_ADDRESS_E3R])
 add_endpoint("/ai16z", [WALLET_PRIVATE_KEY_4GM], [WALLET_ADDRESS_4GM], 9)
